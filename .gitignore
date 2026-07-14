@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.angular/
+generated/
+.env
+.env.local
+*.log
+npm-debug.log*
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+*.md
+!README.md
+*.docx
