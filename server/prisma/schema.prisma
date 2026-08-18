@@ -1,0 +1,175 @@
+// ============================================================================
+// SPRINTHUB - Prisma Schema
+// 7 modela: User, Workspace, Sprint, Stage, Ticket, Tag, Notification
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER - Korisnici sistema
+// Role: ADMIN, MODERATOR, USER
+// ============================================================================
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.NVarChar(191)
+  email     String   @unique @db.NVarChar(191)
+  password  String   @db.NVarChar(255)
+  role      String   @default("USER") @db.NVarChar(16)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspaces      Workspace[]
+  createdTickets  Ticket[]       @relation("TicketCreator")
+  assignedTickets Ticket[]       @relation("TicketAssignee")
+  notifications   Notification[]
+}
+
+// ============================================================================
+// WORKSPACE - Radni prostori (kontejner za sprintove)
+// ============================================================================
+model Workspace {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.NVarChar(191)
+  description String?  @db.NVarChar(Max)
+  icon        String   @default("#6366f1") @db.NVarChar(7)
+
+  createdById Int
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sprints Sprint[]
+  tags    Tag[]
+
+  @@index([createdById])
+}
+
+// ============================================================================
+// SPRINT - Kanban tabla sa životnim ciklusom
+// Status: PLANNING -> ACTIVE -> COMPLETED
+// ============================================================================
+model Sprint {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.NVarChar(191)
+  goal        String?   @db.NVarChar(Max)
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String    @default("PLANNING") @db.NVarChar(16)
+  workspaceId Int
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stages Stage[]
+
+  @@index([workspaceId])
+}
+
+// ============================================================================
+// STAGE - Faze na Kanban tabli (Backlog, In Progress, Review, Done)
+// ============================================================================
+model Stage {
+  id       Int     @id @default(autoincrement())
+  name     String  @db.NVarChar(64)
+  sprintId Int
+  position Int     @default(0)
+  color    String  @default("#6b7280") @db.NVarChar(7)
+
+  sprint Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tickets Ticket[]
+
+  @@index([sprintId])
+  @@index([sprintId, position])
+}
+
+// ============================================================================
+// TICKET - Kartice na Kanban tabli
+// Tip: TASK, BUG, FEATURE, IMPROVEMENT
+// ============================================================================
+model Ticket {
+  id             Int       @id @default(autoincrement())
+  code           String?   @db.NVarChar(32)
+  title          String    @db.NVarChar(1024)
+  description    String?   @db.NVarChar(Max)
+  type           String    @default("TASK") @db.NVarChar(16)
+  stageId        Int
+  position       Int       @default(0)
+  priority       String    @default("MEDIUM") @db.NVarChar(16)
+  dueDate        DateTime?
+  estimatedHours Float?
+
+  createdById Int
+  createdBy   User @relation("TicketCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  assigneeId Int?
+  assignee   User? @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  tagId Int?
+  tag   Tag?  @relation(fields: [tagId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stageId])
+  @@index([stageId, position])
+  @@index([createdById])
+  @@index([assigneeId])
+  @@index([tagId])
+}
+
+// ============================================================================
+// TAG - Kategorije/tagovi za tikete
+// ============================================================================
+model Tag {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.NVarChar(64)
+  color       String  @default("#6b7280") @db.NVarChar(7)
+  workspaceId Int
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+
+  tickets Ticket[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+// ============================================================================
+// NOTIFICATION - Obaveštenja za korisnike
+// ============================================================================
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String   @db.NVarChar(32)
+  title     String   @db.NVarChar(255)
+  message   String   @db.NVarChar(1000)
+  isRead    Boolean  @default(false)
+  link      String?  @db.NVarChar(255)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, isRead])
+}
